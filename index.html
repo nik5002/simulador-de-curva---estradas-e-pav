@@ -1,410 +1,779 @@
 <!DOCTYPE html>
 <html lang="pt-BR">
 <head>
-<meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Simulador de Curva</title>
-<script src="[https://cdn.tailwindcss.com](https://cdn.tailwindcss.com/)"></script>
-<style>
-/* Define a fonte Inter como padrão */
-body {
-font-family: 'Inter', sans-serif;
-background-color: #f3f4f6; /* Fundo cinza claro */
-display: flex;
-justify-content: center;
-align-items: center;
-min-height: 100vh;
-padding: 20px;
-}
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Simulador de Curva DNIT</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Albert+Sans:wght@400;700&family=Readex+Pro:wght@400;700&display=swap" rel="stylesheet">
+    <style>
+        body {
+            font-family: 'Readex Pro', 'Albert Sans', 'Helvetica Neue', Helvetica, Arial, sans-serif;
+            background-color: #f8f5ed;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            min-height: 100vh;
+            padding: 20px;
+        }
 
-```
-    /* O canvas vai preencher seu container, mas sua resolução interna é fixa para o desenho */
-    #simulatorCanvas {
-        background-color: #16a34a; /* Fundo Verde para o campo/grama */
-        border-radius: 0.75rem;
-        width: 100%;
-        height: 100%;
-    }
+        #simulatorCanvas {
+            border-radius: 0.75rem;
+            width: 100%;
+            height: 100%;
+        }
 
-    /* Estilos customizados para o slider para melhor visualização */
-    input[type="range"] {
-        -webkit-appearance: none;
-        width: 100%;
-        height: 8px;
-        background: #d1d5db;
-        border-radius: 4px;
-        margin: 10px 0;
-    }
+        input[type="range"] {
+            -webkit-appearance: none;
+            width: 100%;
+            height: 8px;
+            background: #d1d5db;
+            border-radius: 4px;
+            margin: 10px 0;
+        }
 
-    input[type="range"]::-webkit-slider-thumb {
-        -webkit-appearance: none;
-        appearance: none;
-        width: 20px;
-        height: 20px;
-        border-radius: 50%;
-        background: #ef4444; /* Vermelho vibrante */
-        cursor: pointer;
-        box-shadow: 0 0 5px rgba(0,0,0,0.2);
-        transition: background 0.15s ease-in-out;
-    }
+        input[type="range"]::-webkit-slider-thumb {
+            -webkit-appearance: none;
+            appearance: none;
+            width: 20px;
+            height: 20px;
+            border-radius: 50%;
+            background: #ef4444;
+            cursor: pointer;
+            box-shadow: 0 0 5px rgba(0,0,0,0.2);
+            transition: background 0.15s ease-in-out;
+        }
 
-    input[type="range"]::-webkit-slider-thumb:hover {
-        background: #dc2626;
-    }
+        input[type="range"]::-webkit-slider-thumb:hover {
+            background: #dc2626;
+        }
+        
+        select {
+            -webkit-appearance: none;
+            -moz-appearance: none;
+            appearance: none;
+            background-color: #fff;
+            border: 1px solid #d1d5db;
+            border-radius: 0.375rem;
+            padding: 0.5rem 2.5rem 0.5rem 0.75rem;
+            font-size: 1rem;
+            line-height: 1.5;
+            background-image: url("data:image/svg+xml,%3csvg xmlns='http://www.w3.org/2000/svg' fill='none' viewBox='0 0 20 20'%3e%3cpath stroke='%236b7280' stroke-linecap='round' stroke-linejoin='round' stroke-width='1.5' d='M6 8l4 4 4-4'/%3e%3c/svg%3e");
+            background-position: right 0.5rem center;
+            background-repeat: no-repeat;
+            background-size: 1.5em 1.5em;
+        }
 
-    /* Mensagem de alerta customizada */
-    .message-box {
-        position: fixed;
-        top: 50%;
-        left: 50%;
-        transform: translate(-50%, -50%);
-        background: rgba(0, 0, 0, 0.8);
-        color: white;
-        padding: 15px 30px;
-        border-radius: 8px;
-        z-index: 1000;
-        opacity: 0;
-        transition: opacity 0.5s;
-        pointer-events: none;
-    }
-    .message-box.show {
-        opacity: 1;
-    }
-</style>
+        .message-box {
+            position: fixed;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            background: rgba(0, 0, 0, 0.8);
+            color: white;
+            padding: 15px 30px;
+            border-radius: 8px;
+            z-index: 1000;
+            opacity: 0;
+            transition: opacity 0.5s;
+            pointer-events: none;
+        }
+        .message-box.show {
+            opacity: 1;
+        }
+        
+        details summary {
+            cursor: pointer;
+            font-size: 0.875rem;
+            color: #4b5563;
+        }
+        details summary:hover {
+            color: #000;
+        }
+        details div {
+            font-size: 0.875rem;
+            color: #374151;
+            background-color: #f9fafb;
+            padding: 10px;
+            border-radius: 0.375rem;
+            margin-top: 5px;
+        }
 
-```
-
+        .text-custom-green-dark { color: #275d2a; }
+        .text-custom-green-light { color: #cbe2af; }
+        .bg-custom-green-dark { background-color: #275d2a; }
+        .hover\:bg-custom-green-dark-hover:hover { background-color: #1a441e; }
+    </style>
 </head>
 <body>
 
-```
-<!-- CONTAINER PRINCIPAL: Aspect Ratio 16:9 --><div class="w-full max-w-6xl shadow-2xl rounded-xl overflow-hidden bg-white">
-    <div class="aspect-[16/9] flex">
-        <!-- SEÇÃO ESQUERDA: SIMULADOR (2/3 da largura) --><div class="w-2/3 p-4 bg-gray-100 flex items-center justify-center">
-            <!-- O canvas terá dimensões internas fixas (800x450) para facilitar o desenho vetorial, e será dimensionado via CSS --><canvas id="simulatorCanvas" width="800" height="450"></canvas>
-        </div>
-
-        <!-- SEÇÃO DIREITA: CONTROLES (1/3 da largura) --><div class="w-1/3 p-6 flex flex-col justify-start space-y-6 bg-white">
-            <h2 class="text-2xl font-bold text-gray-800 border-b pb-2">Controles da Curva (50° Deflexão)</h2>
-
-            <!-- Slider para o Raio --><div class="flex flex-col">
-                <label for="radiusSlider" id="radiusLabel" class="text-lg font-medium text-gray-700">
-                    Raio da Curva (R): 112m
-                </label>
-                <!-- CORREÇÃO DE ERRO: O mínimo foi ajustado para 112m para evitar que o raio interno da pista se torne negativo, o que causa um erro de IndexSizeError no canvas. --><input type="range" id="radiusSlider" min="112" max="1200" value="112" step="1">
-                <p class="text-sm text-gray-500 mt-1">
-                    A curva possui uma deflexão de 50 graus. O slider controla o raio. A pista está mais larga para melhor visualização em grandes raios (1m ≈ 0.36px com zoom).
-                </p>
+    <div class="w-full max-w-6xl shadow-2xl rounded-xl overflow-hidden bg-white">
+        <div class="aspect-[16/9] flex">
+            <div class="w-2/3 p-4 bg-gray-100 flex items-center justify-center">
+                <canvas id="simulatorCanvas" width="800" height="450"></canvas>
             </div>
 
-            <div class="p-4 bg-indigo-50 border border-indigo-200 rounded-lg text-sm text-indigo-700">
-                <p class="font-semibold mb-1">Geometria da Pista:</p>
-                <p>Trecho reto vertical (entrada) -> Curva de 50° para a direita/cima -> Trecho reto angulado (saída).</p>
-                <p class="mt-2 text-xs font-mono">PI (400, 200) fixo. P1 e P2 dinâmicos na reta.</p>
+            <div class="w-1/3 p-6 flex flex-col space-y-4 bg-white overflow-y-auto">
+                <h2 class="text-2xl font-bold text-custom-green-dark border-b pb-2">Controles da Curva (DNIT)</h2>
+
+                <div class="flex flex-col">
+                    <label for="classSelect" class="text-lg font-medium text-gray-700">
+                        Classe de Projeto
+                    </label>
+                    <select id="classSelect" class="w-full mt-1">
+                        <option value="0">Classe 0</option>
+                        <option value="I" selected>Classe I</option>
+                        <option value="II">Classe II</option>
+                        <option value="III">Classe III</option>
+                        <option value="IV">Classe IV</option>
+                    </select>
+                </div>
+                
+                <div class="flex flex-col">
+                    <label for="terrainSelect" class="text-lg font-medium text-gray-700">
+                        Tipo de Relevo
+                    </label>
+                    <select id="terrainSelect" class="w-full mt-1">
+                        <option value="plano" selected>Plano</option>
+                        <option value="ondulado">Ondulado</option>
+                        <option value="montanhoso">Montanhoso</option>
+                    </select>
+                </div>
+                
+                <div class="flex flex-col">
+                    <label for="superelevationSelect" class="text-lg font-medium text-gray-700">
+                        Super-elevação (e_max)
+                    </label>
+                    <select id="superelevationSelect" class="w-full mt-1">
+                        <option value="4">4% (Urbano extremo)</option>
+                        <option value="6">6% (Urbano)</option>
+                        <option value="8" selected>8% (Padrão)</option>
+                        <option value="10">10% (Padrão elevado)</option>
+                        <option value="12">12% (Correções)</option>
+                    </select>
+                    <details class="mt-2">
+                        <summary>O que é e_max?</summary>
+                        <div>
+                            <strong>4%:</strong> Ocupação intensa, flexibilidade reduzida.
+                            <br><strong>6%:</strong> Urbanização adjacente, interseções frequentes.
+                            <br><strong>8%:</strong> Padrão intermediário, Classe I (Montanhoso) e demais classes.
+                            <br><strong>10%:</strong> Padrão elevado, fluxo ininterrupto, Classe 0 e I (Plano/Ondulado).
+                            <br><strong>12%:</strong> Casos de melhorias e correções.
+                        </div>
+                    </details>
+                </div>
+                
+                <div class="border-t pt-4 space-y-4">
+                    <p id="suggestedSpeedDisplay" class="text-base font-semibold text-blue-600">
+                        Velocidade Diretriz (DNIT): 100 km/h
+                    </p>
+                    
+                    <div class="flex flex-col">
+                        <label for="velocitySlider" id="velocityLabel" class="text-lg font-medium text-gray-700">
+                            Velocidade (V): 100 km/h
+                        </label>
+                        <input type="range" id="velocitySlider" min="30" max="120" value="100" step="5">
+                    </div>
+                    
+                    <div class="flex flex-col">
+                        <label for="radiusSlider" id="radiusLabel" class="text-lg font-medium text-gray-700">
+                            Raio da Curva (R): 375m
+                        </label>
+                        <input type="range" id="radiusSlider" min="20" max="1200" value="375" step="1">
+                    </div>
+
+                    <p id="minRadiusDisplay" class="text-base font-semibold text-red-600 mt-2">
+                        Raio Mínimo Exigido: 0m
+                    </p>
+                </div>
+
+                <button id="toggleSimulationButton" class="w-full py-3 mt-2 text-custom-green-light font-bold rounded-lg shadow-md transition duration-200 bg-custom-green-dark hover:bg-custom-green-dark-hover">
+                    Iniciar Simulação
+                </button>
+
+                <div class="p-4 bg-indigo-50 border border-indigo-200 rounded-lg text-sm text-indigo-700">
+                    <p class="font-semibold mb-1">Fórmula DNIT (Derrapagem):</p>
+                    <p>O carro derrapa se R_Curva &lt; R_min.</p>
+                    <p class="mt-2 text-xs font-mono">R_min = V² / (127 * (e_max + f_max))</p>
+                </div>
+                
             </div>
         </div>
     </div>
-</div>
 
-<!-- Mensagem Box para substituir o alert() --><div id="messageBox" class="message-box"></div>
+    <div id="messageBox" class="message-box"></div>
 
-<script type="module">
-    // Definição das constantes de Firebase/Canvas. (Mantidas para compatibilidade, não utilizadas aqui)
-    const appId = typeof __app_id !== 'undefined' ? __app_id : 'default-app-id';
-    const firebaseConfig = typeof __firebase_config !== 'undefined' ? JSON.parse(__firebase_config) : {};
-    const initialAuthToken = typeof __initial_auth_token !== 'undefined' ? __initial_auth_token : null;
+    <script type="module"> 
+        // --- Variáveis do Canvas e Elementos de Controle ---
+        const canvas = document.getElementById('simulatorCanvas');
+        const ctx = canvas.getContext('2d');
+        const radiusSlider = document.getElementById('radiusSlider');
+        const radiusLabel = document.getElementById('radiusLabel');
+        const velocitySlider = document.getElementById('velocitySlider');
+        const velocityLabel = document.getElementById('velocityLabel');
+        const classSelect = document.getElementById('classSelect'); 
+        const terrainSelect = document.getElementById('terrainSelect');
+        const superelevationSelect = document.getElementById('superelevationSelect'); 
+        const suggestedSpeedDisplay = document.getElementById('suggestedSpeedDisplay'); 
+        const minRadiusDisplay = document.getElementById('minRadiusDisplay'); 
+        const toggleButton = document.getElementById('toggleSimulationButton');
+        
+        // Dimensões internas de desenho do Canvas (800x450, proporção 16:9)
+        const CANVAS_WIDTH = canvas.width;
+        const CANVAS_HEIGHT = canvas.height;
+        
+        const ROAD_WIDTH_M = 40; 
+        const ROAD_WIDTH_P = 80; // Largura visual da pista
+        
+        // --- Escala para o Zoom ---
+        const ORIGINAL_SCALE_FACTOR = 0.6; 
+        const ZOOM_FACTOR = 0.9;           
+        const SCALED_FACTOR = ORIGINAL_SCALE_FACTOR * ZOOM_FACTOR; 
+        
+        // Offset para mover a vista. Ajustado para centralizar a pista verticalmente.
+        // A reta de entrada começará fora da tela, na borda inferior.
+        const VIEW_OFFSET_Y = 150; 
+        
+        // --- DEFINIÇÕES FIXAS DA PISTA ---
+        const PI_X_ORIGINAL = CANVAS_WIDTH / 2; 
+        const PI_Y_ORIGINAL = CANVAS_HEIGHT / 2 - 50; 
+        const DEFLECTION_ANGLE = 50; 
+        const DEFLECTION_RAD = DEFLECTION_ANGLE * Math.PI / 180;
+        const T1_RAD = 270 * Math.PI / 180; // Entrada vertical (Para cima)
+        const T2_RAD = 320 * Math.PI / 180; // Saída angulada
+        const ENTRY_STRAIGHT_LENGTH_M = 600; // Aumentado para começar mais abaixo
+        const EXIT_STRAIGHT_LENGTH_M = 800;  
 
-    /**
-     * Exibe uma mensagem na tela por um breve período. Substitui o alert().
-     * @param {string} message A mensagem a ser exibida.
-     */
-    function showMessage(message) {
-        const box = document.getElementById('messageBox');
-        box.textContent = message;
-        box.classList.add('show');
-        setTimeout(() => {
-            box.classList.remove('show');
-        }, 3000);
-    }
+        // --- Variáveis de Simulação Dinâmica ---
+        const SIMULATION_SPEED_MULTIPLIER = 7.0; 
+        
+        let isSimulationRunning = false;
+        let animationFrameId = null;
+        let lastTime = 0;
+        let currentPositionMeters = 1; 
+        let carDerailment = false;
+        let PI_DATA = {}; 
+        
+        // --- Funções de Utilitários ---
+        function kmhToMps(kmh) {
+            return kmh * 1000 / 3600;
+        }
 
-    // --- Variáveis do Canvas e Elementos de Controle ---
-    const canvas = document.getElementById('simulatorCanvas');
-    const ctx = canvas.getContext('2d');
-    const radiusSlider = document.getElementById('radiusSlider');
-    const radiusLabel = document.getElementById('radiusLabel');
+        function showMessage(message) {
+            const box = document.getElementById('messageBox');
+            box.textContent = message;
+            box.classList.add('show');
+            setTimeout(() => {
+                box.classList.remove('show');
+            }, 5000);
+        }
 
-    // Dimensões internas de desenho do Canvas (800x450, proporção 16:9)
-    const CANVAS_WIDTH = canvas.width;
-    const CANVAS_HEIGHT = canvas.height;
+        // --- LÓGICA DE ENGENHARIA (DNIT) ---
 
-    // MUDANÇA: Aumentando a largura da pista para melhor visualização em raios grandes
-    const ROAD_WIDTH = 80; // Largura da pista (em pixels internos do canvas).
-    const ROAD_WIDTH_P = ROAD_WIDTH;
+        function getDnitFriction(velocityKmh) {
+            const V = Math.round(velocityKmh); 
+            if (V <= 30) return 0.20; 
+            if (V <= 40) return 0.18;
+            if (V <= 50) return 0.16;
+            if (V <= 60) return 0.15;
+            if (V <= 70) return 0.15;
+            if (V <= 80) return 0.14;
+            if (V <= 90) return 0.14;
+            if (V <= 100) return 0.13;
+            if (V <= 110) return 0.12;
+            if (V <= 120) return 0.11;
+            return 0.11; 
+        }
+        
+        function getSuggestedSpeed(classe, terreno) {
+            switch (classe) {
+                case '0':
+                    if (terreno === 'plano') return '120 km/h';
+                    if (terreno === 'ondulado') return '100 km/h';
+                    if (terreno === 'montanhoso') return '80 km/h';
+                    break;
+                case 'I':
+                    if (terreno === 'plano') return '100 km/h';
+                    if (terreno === 'ondulado') return '80 km/h';
+                    if (terreno === 'montanhoso') return '60 km/h';
+                    break;
+                case 'II':
+                    if (terreno === 'plano') return '100 km/h';
+                    if (terreno === 'ondulado') return '70 km/h';
+                    if (terreno === 'montanhoso') return '50 km/h';
+                    break;
+                case 'III':
+                    if (terreno === 'plano') return '80 km/h';
+                    if (terreno === 'ondulado') return '60 km/h';
+                    if (terreno === 'montanhoso') return '40 km/h';
+                    break;
+                case 'IV':
+                    if (terreno === 'plano') return '80-60 km/h';
+                    if (terreno === 'ondulado') return '60-40 km/h';
+                    if (terreno === 'montanhoso') return '40-30 km/h';
+                    break;
+            }
+            return 'N/A';
+        }
 
-    // --- Escala para o Zoom ---
-    // MUDANÇA: Diminuindo a escala base para acomodar raios maiores (1200m)
-    const ORIGINAL_SCALE_FACTOR = 0.3; // Novo Fator de Escala Base (0.3px/m)
-    // MUDANÇA: Diminuindo o zoom para mostrar mais do trecho reto
-    const ZOOM_FACTOR = 1.2;            // Novo Aumento de zoom
-    const SCALED_FACTOR = ORIGINAL_SCALE_FACTOR * ZOOM_FACTOR; // Nova escala efetiva: 1m ≈ 0.36px
+        function calculateMinRadius(velocityKmh, superelevationPercent) {
+            const V = velocityKmh;
+            const e_max = superelevationPercent / 100.0;
+            const f_max = getDnitFriction(V);
+            
+            const denominator = 127 * (e_max + f_max);
+            
+            if (denominator === 0) return Infinity;
+            
+            const R_min = (V * V) / denominator;
+            return R_min;
+        }
 
-    // --- DEFINIÇÕES FIXAS DA PISTA ---
-    // Ponto de Interseção (PI) onde as duas retas se encontrariam (FIXO)
-    // Este é o "centro" da nossa área de interesse para o zoom.
-    const PI_X_ORIGINAL = CANVAS_WIDTH / 2; // 400
-    const PI_Y_ORIGINAL = 200;              // 200
+        function updateMinRadiusDisplay() {
+            const V = parseInt(velocitySlider.value);
+            const R_escolhido = parseInt(radiusSlider.value);
+            const e_max_percent = parseFloat(superelevationSelect.value);
+            
+            const R_min = calculateMinRadius(V, e_max_percent);
+            
+            minRadiusDisplay.textContent = `Raio Mínimo Exigido: ${R_min.toFixed(1)}m`;
+            
+            if (R_escolhido < R_min) {
+                minRadiusDisplay.classList.remove('text-green-600');
+                minRadiusDisplay.classList.add('text-red-600');
+                carDerailment = true;
+            } else {
+                minRadiusDisplay.classList.remove('text-red-600');
+                minRadiusDisplay.classList.add('text-green-600');
+                carDerailment = false;
+            }
+        }
+        
+         function updateSuggestedSpeedDisplay() {
+            const classe = classSelect.value;
+            const terreno = terrainSelect.value;
+            const V_sugerida = getSuggestedSpeed(classe, terreno);
+            
+            suggestedSpeedDisplay.textContent = `Velocidade Diretriz (DNIT): ${V_sugerida}`;
+         }
 
-    // Deflexão de 50 graus (0.8727 rad)
-    const DEFLECTION_ANGLE = 50;
-    const DEFLECTION_RAD = DEFLECTION_ANGLE * Math.PI / 180;
 
-    // Ângulo da Tangente de Entrada (T1) - Vertical para cima (270 graus ou -90)
-    const T1_RAD = 270 * Math.PI / 180;
-    // Ângulo da Tangente de Saída (T2) - Angulada para cima/direita (270 + 50 = 320 graus ou -40)
-    const T2_RAD = 320 * Math.PI / 180;
+        // --- LÓGICA DE GEOMETRIA E DESENHO ---
 
-    // Comprimento da reta para garantir que ela vá para fora da tela
-    const LONG_STRAIGHT_LENGTH = 300;
-    const ENTRY_STRAIGHT_LENGTH = 300;
+        function calculateGeometry(radius) {
+            const R_METERS = radius;
+            const R_PIXELS = R_METERS * SCALED_FACTOR; 
+            
+            // Garantir que a tangente não seja maior que o raio para evitar sobreposição
+            // Isso pode acontecer com raios muito pequenos
+            const T_METERS_calc = R_METERS * Math.tan(DEFLECTION_RAD / 2);
+            const T_PIXELS_calc = T_METERS_calc * SCALED_FACTOR;
 
-    /**
-     * Desenha a curva da pista no canvas com deflexão de 50 graus.
-     * @param {number} radius O raio da curva em metros (valor do slider).
-     */
-    function drawCurve(radius) {
-        // 1. Limpa o Canvas e Fundo
-        ctx.clearRect(0, 0, CANVAS_WIDTH, CANVAS_HEIGHT);
-        ctx.fillStyle = '#16a34a'; // Fundo Verde
-        ctx.fillRect(0, 0, CANVAS_WIDTH, CANVAS_HEIGHT);
+            // Ajuste para evitar sobreposição em raios muito pequenos (Ponto 4)
+            // Se o raio for muito pequeno, o comprimento da tangente pode ser problemático.
+            // Para simplificar, garantimos que PC e PT sejam bem definidos mesmo com R_PIXELS pequeno.
+            let P1_X = PI_X_ORIGINAL;
+            let P1_Y = PI_Y_ORIGINAL;
+            
+            // Centraliza o ponto de início para a curva para raios pequenos
+            // A posição P1_Y é o ponto de tangência da curva.
+            // A reta de entrada vem de "baixo" (Y positivo)
+            const ENTRY_STRAIGHT_END_Y = P1_Y; // O PC da curva
+            
+            const centerX = P1_X + R_PIXELS * Math.cos(0 * Math.PI / 180); 
+            const centerY = P1_Y + R_PIXELS * Math.sin(0 * Math.PI / 180); 
+            
+            const RADIAL_P2 = (180 + DEFLECTION_ANGLE) * Math.PI / 180; 
+            const P2_X = centerX + R_PIXELS * Math.cos(RADIAL_P2);
+            const P2_Y = centerY + R_PIXELS * Math.sin(RADIAL_P2);
+            
+            const L_ARC_METERS = R_METERS * DEFLECTION_RAD;
+            const TOTAL_PATH_METERS = ENTRY_STRAIGHT_LENGTH_M + L_ARC_METERS + EXIT_STRAIGHT_LENGTH_M;
 
-        // --- SALVAR ESTADO E APLICAR TRANSFORMAÇÕES ---
-        ctx.save();
+            PI_DATA = {
+                R_METERS, R_PIXELS, T_METERS: T_METERS_calc, T_PIXELS: T_PIXELS_calc,
+                P1_X: PI_X_ORIGINAL, P1_Y: PI_Y_ORIGINAL, // Isso é o PC da curva, não o início da reta.
+                centerX, centerY, P2_X, P2_Y,
+                L_ARC_METERS, TOTAL_PATH_METERS
+            };
+        }
 
-        // Centralizar a visualização no PI_ORIGINAL após o zoom.
-        // Primeiro, movemos o PI para (0,0), depois aplicamos o zoom, e então movemos o (0,0) para o centro do canvas.
-        ctx.translate(CANVAS_WIDTH / 2, CANVAS_HEIGHT / 2); // Move o (0,0) para o centro do canvas
-        ctx.scale(ZOOM_FACTOR, ZOOM_FACTOR);              // Aplica o zoom
-        ctx.translate(-PI_X_ORIGINAL, -PI_Y_ORIGINAL);    // Move o PI para o (0,0) ANTES do zoom
+        // Modelo de carro SVG (mais detalhado que um Path2D simples, mas ainda leve)
+        const carSvgPath = `
+            M -8 -15 Q -10 -15 -10 -13 L -10 13 Q -10 15 -8 15 L 8 15 Q 10 15 10 13 L 10 -13 Q 10 -15 8 -15 Z
+            M -7 -10 L -7 5 L 7 5 L 7 -10 Z
+            M -7 -13 Q -8 -13 -8 -11 L -8 -10 L -7 -10 Z
+            M 7 -13 Q 8 -13 8 -11 L 8 -10 L 7 -10 Z
+            M -7 7 Q -8 7 -8 9 L -8 10 L -7 10 Z
+            M 7 7 Q 8 7 8 9 L 8 10 L 7 10 Z
+        `;
+        const carPath2D = new Path2D(carSvgPath);
 
-        // --- CÁLCULOS DINÂMICOS BASEADOS NO RAIO ---
-        const R_METERS = radius;
-        const R_PIXELS = R_METERS * SCALED_FACTOR; // Usar o novo fator de escala
+        const CAR_WIDTH_PX = 20; // Largura do carro
+        const CAR_LENGTH_PX = 30; // Comprimento do carro
+        
+        function drawCar(x, y, angle, derailed) {
+            ctx.save();
+            
+            ctx.translate(CANVAS_WIDTH / 2, CANVAS_HEIGHT / 2); 
+            ctx.scale(ZOOM_FACTOR, ZOOM_FACTOR);
+            ctx.translate(-PI_X_ORIGINAL, -PI_Y_ORIGINAL + VIEW_OFFSET_Y);
+            
+            if (derailed) {
+                const DERAIL_DIST_P = ROAD_WIDTH_P * 0.75;
+                const PERP_ANGLE = angle + Math.PI / 2; 
 
-        // Tangente (T): Distância ao longo da reta entre PI e o Ponto de Tangência (P1/P2)
-        const T_METERS = R_METERS * Math.tan(DEFLECTION_RAD / 2);
-        const T_PIXELS = T_METERS * SCALED_FACTOR; // Usar o novo fator de escala
+                x += DERAIL_DIST_P * Math.cos(PERP_ANGLE);
+                y += DERAIL_DIST_P * Math.sin(PERP_ANGLE);
 
-        // --- P1 (Ponto de Tangência de Início - PC) ---
-        // P1 = PI - T * vetor_direção(T1). T1_RAD=270, então P1 está ABAIXO de PI.
-        const P1_X = PI_X_ORIGINAL - T_PIXELS * Math.cos(T1_RAD);
-        const P1_Y = PI_Y_ORIGINAL - T_PIXELS * Math.sin(T1_RAD);
+                ctx.fillStyle = 'red';
+                ctx.font = `28px sans-serif`; 
+                ctx.textAlign = 'center';
+                ctx.fillText('💥', x, y);
+            } else {
+                ctx.translate(x, y);
+                // A rotação deve alinhar o SVG do carro (que está desenhado com a "frente" para cima/Y negativo)
+                // com o ângulo da pista. O + Math.PI/2 corrige essa orientação.
+                ctx.rotate(angle + Math.PI / 2); 
+                
+                ctx.fillStyle = '#ef4444'; // Vermelho do carro
+                ctx.strokeStyle = '#dc2626'; 
+                ctx.lineWidth = 1.5 / ZOOM_FACTOR; // Ajusta a espessura da linha ao zoom
+                
+                ctx.fill(carPath2D);
+                ctx.stroke(carPath2D);
+            }
+            
+            ctx.restore();
+        }
 
-        // --- PC (Centro da Curva) ---
-        // PC deve estar perpendicular à T1 (270°) na direção de 0° (horizontal direita) para ser uma curva à direita.
-        const PERP_T1_RAD_FOR_PC = 0 * Math.PI / 180; // 0 graus (Horizontal Direita)
-        const centerX = P1_X + R_PIXELS * Math.cos(PERP_T1_RAD_FOR_PC);
-        const centerY = P1_Y + R_PIXELS * Math.sin(PERP_T1_RAD_FOR_PC);
+        function getCarPosition(D_meters) {
+            const data = PI_DATA;
+            const L_entry = ENTRY_STRAIGHT_LENGTH_M;
+            const L_arc = data.L_ARC_METERS;
 
-        // --- P2 (Ponto de Tangência de Fim - PT) ---
-        // P2 é o ponto no arco que tem um vetor radial de 230 graus (180 + 50)
-        const RADIAL_P2 = (180 + DEFLECTION_ANGLE) * Math.PI / 180; // 230 graus
-        const P2_X = centerX + R_PIXELS * Math.cos(RADIAL_P2);
-        const P2_Y = centerY + R_PIXELS * Math.sin(RADIAL_P2);
+            let carX, carY, carAngle;
+            
+            // Distância da linha central (para a faixa da direita)
+            // Ajuste para manter o carro na faixa (Ponto 2)
+            const LANE_OFFSET_P = ROAD_WIDTH_P / 4; // Metade da largura da faixa da direita
 
-        // --- Ângulos do Arco ---
-        // Start Angle (PC -> P1): 180 graus (Horizontal Esquerda)
-        const startAngle = Math.PI;
+            // 1. RETA DE ENTRADA (começa na borda inferior da janela)
+            if (D_meters <= L_entry) {
+                const D_pixels = D_meters * SCALED_FACTOR;
+                
+                // O P1_Y é o PC da curva. A reta vem de baixo.
+                // START_Y_STRAIGHT_ENTRY_VISUAL é o ponto onde a reta "entra" na tela visível
+                const START_Y_STRAIGHT_ENTRY_VISUAL = data.P1_Y + ENTRY_STRAIGHT_LENGTH_M * SCALED_FACTOR;
 
-        // End Angle (PC -> P2): 230 graus (Radial P2)
-        const endAngle = RADIAL_P2;
+                carX = data.P1_X;
+                // Calculamos a posição Y a partir do ponto onde a reta encontra a curva (P1_Y)
+                // e subtraímos a distância percorrida D_pixels.
+                carY = START_Y_STRAIGHT_ENTRY_VISUAL - D_pixels;
+                carAngle = T1_RAD; 
 
-        // Curva CONVEXA (Para Fora, Curva à Direita): Sentido Horário (CW) no Canvas
-        const isAntiClockwise = false;
+            // 2. CURVA (ARCO)
+            } else if (D_meters <= L_entry + L_arc) {
+                const D_arc = D_meters - L_entry;
+                const progress = D_arc / L_arc;
+                const startAngleDeg = 180; // Início do arco em 180 graus (esquerda)
+                const currentAngleDeg = startAngleDeg + (progress * DEFLECTION_ANGLE);
+                const currentAngleRad = currentAngleDeg * Math.PI / 180;
+                
+                carAngle = currentAngleRad + Math.PI / 2; // Tangente ao arco
+                
+                // O carro se move na faixa da direita. O raio para o carro é o raio da linha central da curva
+                // mais o offset para a faixa da direita (Ponto 2)
+                const carRadius = data.R_PIXELS + LANE_OFFSET_P; 
+                carX = data.centerX + carRadius * Math.cos(currentAngleRad);
+                carY = data.centerY + carRadius * Math.sin(currentAngleRad);
+                
+                return { x: carX, y: carY, angle: carAngle }; 
+                
+            // 3. RETA DE SAÍDA
+            } else {
+                const D_exit = D_meters - (L_entry + L_arc);
+                const D_pixels = D_exit * SCALED_FACTOR;
 
-        // --- Ponto Final da Reta de Saída (L2) ---
-        // A reta de saída começa em P2 e se estende na direção T2_RAD (320 graus)
-        const END_X_STRAIGHT_EXIT = P2_X + LONG_STRAIGHT_LENGTH * Math.cos(T2_RAD);
-        const END_Y_STRAIGHT_EXIT = P2_Y + LONG_STRAIGHT_LENGTH * Math.sin(T2_RAD);
+                carX = data.P2_X + D_pixels * Math.cos(T2_RAD);
+                carY = data.P2_Y + D_pixels * Math.sin(T2_RAD);
+                carAngle = T2_RAD;
+            }
 
-        // --- DESENHO DA PISTA ---
+            // Offset para o carro estar na faixa da direita (apenas nas retas, na curva o offset já é aplicado ao raio)
+            // Usamos a direção perpendicular para o offset
+            const offsetAngle = carAngle + Math.PI / 2; // Perpendicular à direção da pista
+            carX += LANE_OFFSET_P * Math.cos(offsetAngle);
+            carY += LANE_OFFSET_P * Math.sin(offsetAngle);
 
-        // --- 1. RETA DE ENTRADA (VERTICAL, FIXA NO EIXO X DO PI) ---
+            return { x: carX, y: carY, angle: carAngle };
+        }
+        
+        function drawGrassBackground() {
+            ctx.save();
+            ctx.fillStyle = '#16a34a'; 
+            ctx.fillRect(0, 0, CANVAS_WIDTH, CANVAS_HEIGHT);
 
-        // Reta de Entrada: Começa mais abaixo de P1 (usando um comprimento fixo) e vai até P1 (para cima)
-        const START_X_STRAIGHT_ENTRY_BOTTOM = PI_X_ORIGINAL;
-        const START_Y_STRAIGHT_ENTRY_BOTTOM = PI_Y_ORIGINAL + ENTRY_STRAIGHT_LENGTH * Math.sin(90 * Math.PI / 180); // Direção para baixo
+            const gradient = ctx.createRadialGradient(
+                CANVAS_WIDTH / 2, CANVAS_HEIGHT / 2, 0, 
+                CANVAS_WIDTH / 2, CANVAS_HEIGHT / 2, Math.max(CANVAS_WIDTH, CANVAS_HEIGHT) / 1.5 
+            );
+            gradient.addColorStop(0, 'rgba(203, 226, 175, 0.3)'); 
+            gradient.addColorStop(1, 'rgba(39, 93, 42, 0.3)');   
+            
+            ctx.fillStyle = gradient;
+            ctx.fillRect(0, 0, CANVAS_WIDTH, CANVAS_HEIGHT);
 
-        // Pista (Preenchimento)
-        ctx.fillStyle = '#374151';
-        ctx.beginPath();
-        ctx.moveTo(P1_X + ROAD_WIDTH_P/2, P1_Y);
-        ctx.lineTo(START_X_STRAIGHT_ENTRY_BOTTOM + ROAD_WIDTH_P/2, START_Y_STRAIGHT_ENTRY_BOTTOM);
-        ctx.lineTo(START_X_STRAIGHT_ENTRY_BOTTOM - ROAD_WIDTH_P/2, START_Y_STRAIGHT_ENTRY_BOTTOM);
-        ctx.lineTo(P1_X - ROAD_WIDTH_P/2, P1_Y);
-        ctx.closePath();
-        ctx.fill();
+            const offscreenCanvas = document.createElement('canvas');
+            offscreenCanvas.width = CANVAS_WIDTH;
+            offscreenCanvas.height = CANVAS_HEIGHT;
+            const offscreenCtx = offscreenCanvas.getContext('2d');
 
-        // Bordas
-        ctx.strokeStyle = '#6b7280';
-        ctx.lineWidth = 4 / ZOOM_FACTOR; // Escalar a largura da linha também
-        ctx.lineCap = 'butt';
+            const imageData = offscreenCtx.createImageData(CANVAS_WIDTH, CANVAS_HEIGHT);
+            const data = imageData.data;
+            for (let i = 0; i < data.length; i += 4) {
+                const rand = Math.random() * 255; 
+                data[i] = rand;     
+                data[i + 1] = rand; 
+                data[i + 2] = rand; 
+                data[i + 3] = 30;   
+            }
+            offscreenCtx.putImageData(imageData, 0, 0);
 
-        // Borda Direita
-        ctx.beginPath();
-        ctx.moveTo(P1_X + ROAD_WIDTH_P/2, P1_Y);
-        ctx.lineTo(START_X_STRAIGHT_ENTRY_BOTTOM + ROAD_WIDTH_P/2, START_Y_STRAIGHT_ENTRY_BOTTOM);
-        ctx.stroke();
+            ctx.globalAlpha = 0.3; 
+            ctx.drawImage(offscreenCanvas, 0, 0);
+            ctx.globalAlpha = 1; 
 
-        // Borda Esquerda
-        ctx.beginPath();
-        ctx.moveTo(P1_X - ROAD_WIDTH_P/2, P1_Y);
-        ctx.lineTo(START_X_STRAIGHT_ENTRY_BOTTOM - ROAD_WIDTH_P/2, START_Y_STRAIGHT_ENTRY_BOTTOM);
-        ctx.stroke();
+            ctx.restore();
+        }
 
-        // Linha Central Tracejada
-        ctx.setLineDash([10 / ZOOM_FACTOR, 10 / ZOOM_FACTOR]); // Escalar o tracejado
-        ctx.strokeStyle = '#fefefe';
-        ctx.lineWidth = 2 / ZOOM_FACTOR;
-        ctx.beginPath();
-        ctx.moveTo(P1_X, P1_Y);
-        ctx.lineTo(START_X_STRAIGHT_ENTRY_BOTTOM, START_Y_STRAIGHT_ENTRY_BOTTOM);
-        ctx.stroke();
-        ctx.setLineDash([]);
+        function drawCurve() {
+            const data = PI_DATA;
+            
+            drawGrassBackground();
+            
+            ctx.save();
+            
+            ctx.translate(CANVAS_WIDTH / 2, CANVAS_HEIGHT / 2); 
+            ctx.scale(ZOOM_FACTOR, ZOOM_FACTOR);
+            ctx.translate(-PI_X_ORIGINAL, -PI_Y_ORIGINAL + VIEW_OFFSET_Y); // Aplica o offset aqui
 
-        // --- 2. CURVA (ARCO) ---
+            // Calcula o ponto de início da reta de entrada (na borda inferior da tela visível)
+            const START_Y_STRAIGHT_ENTRY_SCREEN_BOTTOM = (CANVAS_HEIGHT / 2) / ZOOM_FACTOR + PI_Y_ORIGINAL - VIEW_OFFSET_Y + 50; // Começa um pouco abaixo da tela
+            const START_X_STRAIGHT_ENTRY_SCREEN_BOTTOM = data.P1_X; // X é o mesmo que o PC
 
-        const outerRadius = R_PIXELS + ROAD_WIDTH_P / 2;
-        const innerRadius = R_PIXELS - ROAD_WIDTH_P / 2;
+            // Ponto de tangência da curva (PC)
+            const PC_X = data.P1_X;
+            const PC_Y = data.P1_Y; // PC é o PI_Y_ORIGINAL
 
-        // Preenchimento (Pista) - Usa Path2D
-        ctx.fillStyle = '#374151';
-        ctx.beginPath();
-        // Borda externa (CW)
-        ctx.arc(centerX, centerY, outerRadius, startAngle, endAngle, isAntiClockwise);
-        // Borda interna (CCW)
-        ctx.arc(centerX, centerY, innerRadius, endAngle, startAngle, !isAntiClockwise);
-        ctx.closePath();
-        ctx.fill();
+            // RETA DE ENTRADA (desenha do ponto abaixo da tela até o PC da curva)
+            ctx.fillStyle = '#374151'; 
+            ctx.strokeStyle = '#6b7280'; 
+            ctx.lineWidth = 4 / ZOOM_FACTOR;
+            ctx.setLineDash([]); 
 
-        // Bordas (Linha Sólida)
-        ctx.strokeStyle = '#6b7280';
-        ctx.lineWidth = 4 / ZOOM_FACTOR;
+            ctx.beginPath();
+            ctx.moveTo(PC_X + ROAD_WIDTH_P/2, PC_Y);
+            ctx.lineTo(START_X_STRAIGHT_ENTRY_SCREEN_BOTTOM + ROAD_WIDTH_P/2, START_Y_STRAIGHT_ENTRY_SCREEN_BOTTOM);
+            ctx.lineTo(START_X_STRAIGHT_ENTRY_SCREEN_BOTTOM - ROAD_WIDTH_P/2, START_Y_STRAIGHT_ENTRY_SCREEN_BOTTOM);
+            ctx.lineTo(PC_X - ROAD_WIDTH_P/2, PC_Y);
+            ctx.closePath();
+            ctx.fill();
+            ctx.stroke(); 
 
-        // Borda Externa
-        ctx.beginPath();
-        ctx.arc(centerX, centerY, outerRadius, startAngle, endAngle, isAntiClockwise);
-        ctx.stroke();
-        // Borda Interna
-        ctx.beginPath();
-        ctx.arc(centerX, centerY, innerRadius, startAngle, endAngle, isAntiClockwise);
-        ctx.stroke();
+            // Linha Central Reta Entrada (Tracejada)
+            ctx.setLineDash([10 / ZOOM_FACTOR, 10 / ZOOM_FACTOR]);
+            ctx.strokeStyle = '#fefefe';
+            ctx.lineWidth = 2 / ZOOM_FACTOR;
+            ctx.beginPath();
+            ctx.moveTo(PC_X, PC_Y);
+            ctx.lineTo(START_X_STRAIGHT_ENTRY_SCREEN_BOTTOM, START_Y_STRAIGHT_ENTRY_SCREEN_BOTTOM);
+            ctx.stroke();
+            ctx.setLineDash([]); 
+            
+            // CURVA (ARCO)
+            const outerRadius = data.R_PIXELS + ROAD_WIDTH_P / 2;
+            let innerRadius = data.R_PIXELS - ROAD_WIDTH_P / 2;
+            
+            if (innerRadius <= 0) {
+                innerRadius = 1.0; 
+            }
 
-        // Linha Central Tracejada
-        ctx.setLineDash([10 / ZOOM_FACTOR, 10 / ZOOM_FACTOR]);
-        ctx.strokeStyle = '#fefefe';
-        ctx.lineWidth = 2 / ZOOM_FACTOR;
-        ctx.beginPath();
-        ctx.arc(centerX, centerY, R_PIXELS, startAngle, endAngle, isAntiClockwise);
-        ctx.stroke();
-        ctx.setLineDash([]); // Remove o tracejado
+            const startAngle = Math.PI; 
+            const endAngle = (180 + DEFLECTION_ANGLE) * Math.PI / 180; 
+            const isAntiClockwise = false; 
 
-        // --- 3. RETA DE SAÍDA (ANGULADA) ---
+            ctx.beginPath();
+            ctx.arc(data.centerX, data.centerY, outerRadius, startAngle, endAngle, isAntiClockwise);
+            ctx.arc(data.centerX, data.centerY, innerRadius, endAngle, startAngle, !isAntiClockwise);
+            ctx.closePath();
+            ctx.fill();
+            ctx.strokeStyle = '#6b7280';
+            ctx.lineWidth = 4 / ZOOM_FACTOR;
+            ctx.stroke(); 
 
-        // Ângulo perpendicular à T2 para calcular o deslocamento da largura
-        const PERP_T2_RAD = T2_RAD - Math.PI / 2;
+            // Linha Central Curva (Tracejada)
+            ctx.setLineDash([10 / ZOOM_FACTOR, 10 / ZOOM_FACTOR]);
+            ctx.strokeStyle = '#fefefe';
+            ctx.lineWidth = 2 / ZOOM_FACTOR;
+            ctx.beginPath();
+            ctx.arc(data.centerX, data.centerY, data.R_PIXELS, startAngle, endAngle, isAntiClockwise);
+            ctx.stroke();
+            ctx.setLineDash([]); 
+            
+            // RETA DE SAÍDA
+            const PERP_T2_RAD = T2_RAD - Math.PI / 2; 
+            const offsetX_out = Math.cos(PERP_T2_RAD) * ROAD_WIDTH_P / 2;
+            const offsetY_out = Math.sin(PERP_T2_RAD) * ROAD_WIDTH_P / 2;
+            
+            const END_X_STRAIGHT_EXIT = data.P2_X + EXIT_STRAIGHT_LENGTH_M * SCALED_FACTOR * Math.cos(T2_RAD);
+            const END_Y_STRAIGHT_EXIT = data.P2_Y + EXIT_STRAIGHT_LENGTH_M * SCALED_FACTOR * Math.sin(T2_RAD);
+            
+            const P2_OUTER_X = data.P2_X + offsetX_out;
+            const P2_OUTER_Y = data.P2_Y + offsetY_out;
+            const END_OUTER_X = END_X_STRAIGHT_EXIT + offsetX_out;
+            const END_OUTER_Y = END_Y_STRAIGHT_EXIT + offsetY_out;
+            const P2_INNER_X = data.P2_X - offsetX_out;
+            const P2_INNER_Y = data.P2_Y - offsetY_out;
+            const END_INNER_X = END_X_STRAIGHT_EXIT - offsetX_out;
+            const END_INNER_Y = END_Y_STRAIGHT_EXIT - offsetY_out;
 
-        // Calcula os pontos das bordas da reta de saída
-        const offsetX_out = Math.cos(PERP_T2_RAD) * ROAD_WIDTH_P / 2;
-        const offsetY_out = Math.sin(PERP_T2_RAD) * ROAD_WIDTH_P / 2;
+            ctx.fillStyle = '#374151';
+            ctx.beginPath();
+            ctx.moveTo(P2_OUTER_X, P2_OUTER_Y);
+            ctx.lineTo(END_OUTER_X, END_OUTER_Y);
+            ctx.lineTo(END_INNER_X, END_INNER_Y);
+            ctx.lineTo(P2_INNER_X, P2_INNER_Y);
+            ctx.closePath();
+            ctx.fill();
+            ctx.strokeStyle = '#6b7280';
+            ctx.lineWidth = 4 / ZOOM_FACTOR;
+            ctx.stroke();
+            
+            // Linha Central Reta Saída (Tracejada)
+            ctx.setLineDash([10 / ZOOM_FACTOR, 10 / ZOOM_FACTOR]);
+            ctx.strokeStyle = '#fefefe';
+            ctx.lineWidth = 2 / ZOOM_FACTOR;
+            ctx.beginPath();
+            ctx.moveTo(data.P2_X, data.P2_Y);
+            ctx.lineTo(END_X_STRAIGHT_EXIT, END_Y_STRAIGHT_EXIT);
+            ctx.stroke();
 
-        // Ponto de início/fim das bordas
-        const P2_OUTER_X = P2_X + offsetX_out;
-        const P2_OUTER_Y = P2_Y + offsetY_out;
-        const END_OUTER_X = END_X_STRAIGHT_EXIT + offsetX_out;
-        const END_OUTER_Y = END_Y_STRAIGHT_EXIT + offsetY_out;
-        const P2_INNER_X = P2_X - offsetX_out;
-        const P2_INNER_Y = P2_Y - offsetY_out;
-        const END_INNER_X = END_X_STRAIGHT_EXIT - offsetX_out;
-        const END_INNER_Y = END_Y_STRAIGHT_EXIT - offsetY_out;
+            ctx.restore();
+        }
 
-        // Pista (Preenchimento) - Usa um polígono para preencher a reta angulada
-        ctx.fillStyle = '#374151';
-        ctx.beginPath();
-        ctx.moveTo(P2_OUTER_X, P2_OUTER_Y);
-        ctx.lineTo(END_OUTER_X, END_OUTER_Y);
-        ctx.lineTo(END_INNER_X, END_INNER_Y);
-        ctx.lineTo(P2_INNER_X, P2_INNER_Y);
-        ctx.closePath();
-        ctx.fill();
+        // --- LOOP PRINCIPAL DE ANIMAÇÃO ---
+        function simulationLoop(timestamp) {
+            if (!lastTime) lastTime = timestamp;
+            const deltaTime = timestamp - lastTime;
+            lastTime = timestamp;
 
-        // Bordas
-        ctx.strokeStyle = '#6b7280';
-        ctx.lineWidth = 4 / ZOOM_FACTOR;
+            const V_kmh = parseFloat(velocitySlider.value);
+            const V_mps = kmhToMps(V_kmh);
+            
+            const distanceTraveled = V_mps * (deltaTime / 1000) * SIMULATION_SPEED_MULTIPLIER;
+            currentPositionMeters += distanceTraveled;
 
-        // Borda Externa
-        ctx.beginPath();
-        ctx.moveTo(P2_OUTER_X, P2_OUTER_Y);
-        ctx.lineTo(END_OUTER_X, END_OUTER_Y);
-        ctx.stroke();
+            const R_escolhido = parseInt(radiusSlider.value);
+            const e_max_percent = parseFloat(superelevationSelect.value);
+            const R_min = calculateMinRadius(V_kmh, e_max_percent);
 
-        // Borda Interna
-        ctx.beginPath();
-        ctx.moveTo(P2_INNER_X, P2_INNER_Y);
-        ctx.lineTo(END_INNER_X, END_INNER_Y);
-        ctx.stroke();
+            if (currentPositionMeters >= ENTRY_STRAIGHT_LENGTH_M && 
+                currentPositionMeters <= ENTRY_STRAIGHT_LENGTH_M + PI_DATA.L_ARC_METERS) {
+                
+                if (R_escolhido < R_min) {
+                    carDerailment = true;
+                } else {
+                    carDerailment = false; 
+                }
+            } else {
+                carDerailment = false;
+            }
 
-        // Linha Central Tracejada
-        ctx.setLineDash([10 / ZOOM_FACTOR, 10 / ZOOM_FACTOR]);
-        ctx.strokeStyle = '#fefefe';
-        ctx.lineWidth = 2 / ZOOM_FACTOR;
-        ctx.beginPath();
-        ctx.moveTo(P2_X, P2_Y);
-        ctx.lineTo(END_X_STRAIGHT_EXIT, END_Y_STRAIGHT_EXIT);
-        ctx.stroke();
-        ctx.setLineDash([]);
+            if (currentPositionMeters > PI_DATA.TOTAL_PATH_METERS + 100) {
+                currentPositionMeters = 0;
+                if (carDerailment) {
+                    showMessage(`Derrapagem! Raio ${R_escolhido}m é menor que R_min ${R_min.toFixed(1)}m a ${V_kmh}km/h.`);
+                }
+                carDerailment = false; 
+            }
+            
+            drawCurve(); 
+            const carPos = getCarPosition(currentPositionMeters);
+            drawCar(carPos.x, carPos.y, carPos.angle, carDerailment);
 
-        // --- 4. ANOTAÇÕES ---
-        // Restaurar o estado do contexto para as anotações não serem escaladas/movidas.
-        ctx.restore();
+            animationFrameId = requestAnimationFrame(simulationLoop);
+        }
 
-        ctx.fillStyle = '#fefefe';
-        ctx.font = '16px Inter';
-        ctx.textAlign = 'right';
-        ctx.fillText(`Raio (R) = ${R_METERS}m`, CANVAS_WIDTH - 20, CANVAS_HEIGHT - 40);
-        ctx.fillText(`Tangente (T) = ${T_METERS.toFixed(1)}m`, CANVAS_WIDTH - 20, CANVAS_HEIGHT - 20);
+        function startSimulation() {
+            if (isSimulationRunning) return;
+            isSimulationRunning = true;
+            toggleButton.textContent = 'Parar Simulação';
+            toggleButton.classList.remove('bg-custom-green-dark', 'hover:bg-custom-green-dark-hover');
+            toggleButton.classList.add('bg-red-500', 'hover:bg-red-600');
 
-        // Opcional: Desenhar o PI - desenhado no contexto original (sem zoom)
-        ctx.fillStyle = '#fefefe';
-        ctx.beginPath();
-        ctx.arc(PI_X_ORIGINAL, PI_Y_ORIGINAL, 5, 0, 2 * Math.PI);
-        ctx.fill();
-        ctx.fillText(`PI`, PI_X_ORIGINAL - 10, PI_Y_ORIGINAL + 5);
-    }
+            currentPositionMeters = 0;
+            carDerailment = false;
 
-    /**
-     * Manipulador de eventos para o slider.
-     */
-    function handleRadiusChange() {
-        const currentRadius = parseInt(radiusSlider.value);
-        radiusLabel.textContent = `Raio da Curva (R): ${currentRadius}m`;
+            lastTime = 0; 
+            simulationLoop(performance.now());
+        }
 
-        // Chama a função de desenho com o novo raio
-        drawCurve(currentRadius);
-    }
+        function stopSimulation() {
+            if (!isSimulationRunning) return;
+            isSimulationRunning = false;
+            toggleButton.textContent = 'Iniciar Simulação';
+            toggleButton.classList.remove('bg-red-500', 'hover:bg-red-600');
+            toggleButton.classList.add('bg-custom-green-dark', 'hover:bg-custom-green-dark-hover');
+            cancelAnimationFrame(animationFrameId);
+            
+            currentPositionMeters = 1; 
+            drawCurve();
+            const carPos = getCarPosition(currentPositionMeters);
+            drawCar(carPos.x, carPos.y, carPos.angle, carDerailment);
+        }
 
-    // --- Inicialização ---
+        // --- Event Listeners ---
+        
+        toggleButton.addEventListener('click', () => {
+            if (isSimulationRunning) {
+                stopSimulation();
+            } else {
+                startSimulation();
+            }
+        });
 
-    // 1. Define o listener para o slider
-    radiusSlider.addEventListener('input', handleRadiusChange);
+        function handleControlChange() {
+            const R = parseInt(radiusSlider.value);
+            const V = parseInt(velocitySlider.value);
 
-    // 2. Desenha a curva inicial
-    window.onload = function() {
-        handleRadiusChange(); // Desenha com o valor padrão (200)
-    }
+            radiusLabel.textContent = `Raio da Curva (R): ${R}m`;
+            velocityLabel.textContent = `Velocidade (V): ${V} km/h`;
+            
+            calculateGeometry(R);
+            updateMinRadiusDisplay();
+            updateSuggestedSpeedDisplay();
 
-</script>
+            if (!isSimulationRunning) {
+                currentPositionMeters = 1; 
+                drawCurve();
+                const carPos = getCarPosition(currentPositionMeters);
+                drawCar(carPos.x, carPos.y, carPos.angle, carDerailment);
+            }
+        }
 
-```
+        radiusSlider.addEventListener('input', handleControlChange);
+        velocitySlider.addEventListener('input', handleControlChange);
+        classSelect.addEventListener('change', handleControlChange);
+        terrainSelect.addEventListener('change', handleControlChange);
+        superelevationSelect.addEventListener('change', handleControlChange);
 
+        // --- Inicialização ---
+        window.onload = function() {
+            handleControlChange(); 
+            stopSimulation(); 
+        };
+
+    </script>
 </body>
 </html>
