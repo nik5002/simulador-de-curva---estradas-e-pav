@@ -484,7 +484,7 @@
                 
                 // O carro se move na faixa da direita. O raio para o carro é o raio da linha central da curva
                 // mais o offset para a faixa da direita (Ponto 2)
-                const carRadius = data.R_PIXELS + LANE_OFFSET_P; 
+                const carRadius = data.R_PIXELS - LANE_OFFSET_P; 
                 carX = data.centerX + carRadius * Math.cos(currentAngleRad);
                 carY = data.centerY + carRadius * Math.sin(currentAngleRad);
                 
