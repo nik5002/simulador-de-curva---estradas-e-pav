@@ -69,14 +69,18 @@
             top: 50%;
             left: 50%;
             transform: translate(-50%, -50%);
-            background: rgba(0, 0, 0, 0.8);
+            background: rgba(220, 38, 38, 0.95);
             color: white;
-            padding: 15px 30px;
-            border-radius: 8px;
+            padding: 20px 40px;
+            border-radius: 12px;
             z-index: 1000;
             opacity: 0;
-            transition: opacity 0.5s;
+            transition: opacity 0.3s;
             pointer-events: none;
+            text-align: center;
+            font-weight: bold;
+            font-size: 1.2rem;
+            box-shadow: 0 10px 25px rgba(0,0,0,0.5);
         }
         .message-box.show {
             opacity: 1;
@@ -109,7 +113,7 @@
 
     <div class="w-full max-w-6xl shadow-2xl rounded-xl overflow-hidden bg-white">
         <div class="aspect-[16/9] flex">
-            <div class="w-2/3 p-4 bg-gray-100 flex items-center justify-center">
+            <div class="w-2/3 p-4 bg-gray-100 flex items-center justify-center relative">
                 <canvas id="simulatorCanvas" width="800" height="450"></canvas>
             </div>
 
@@ -218,31 +222,31 @@
         const minRadiusDisplay = document.getElementById('minRadiusDisplay'); 
         const toggleButton = document.getElementById('toggleSimulationButton');
         
-        // Dimensões internas de desenho do Canvas (800x450, proporção 16:9)
         const CANVAS_WIDTH = canvas.width;
         const CANVAS_HEIGHT = canvas.height;
         
         const ROAD_WIDTH_M = 40; 
-        const ROAD_WIDTH_P = 80; // Largura visual da pista
+        const ROAD_WIDTH_P = 80; 
         
-        // --- Escala para o Zoom ---
-        const ORIGINAL_SCALE_FACTOR = 0.6; 
+        // Reduzi um pouco a escala para curvas grandes caberem melhor
+        const ORIGINAL_SCALE_FACTOR = 0.5; 
         const ZOOM_FACTOR = 0.9;           
         const SCALED_FACTOR = ORIGINAL_SCALE_FACTOR * ZOOM_FACTOR; 
         
-        // Offset para mover a vista. Ajustado para centralizar a pista verticalmente.
-        // A reta de entrada começará fora da tela, na borda inferior.
-        const VIEW_OFFSET_Y = 150; 
+        // --- DEFINIÇÕES DE GEOMETRIA FIXA (O "Esqueleto" da estrada) ---
+        const PI_X = CANVAS_WIDTH / 2; 
+        // PI inicialmente centralizado, mas será movido dinamicamente pela câmera
+        const PI_Y_BASE = CANVAS_HEIGHT / 2; 
         
-        // --- DEFINIÇÕES FIXAS DA PISTA ---
-        const PI_X_ORIGINAL = CANVAS_WIDTH / 2; 
-        const PI_Y_ORIGINAL = CANVAS_HEIGHT / 2 - 50; 
         const DEFLECTION_ANGLE = 50; 
         const DEFLECTION_RAD = DEFLECTION_ANGLE * Math.PI / 180;
-        const T1_RAD = 270 * Math.PI / 180; // Entrada vertical (Para cima)
-        const T2_RAD = 320 * Math.PI / 180; // Saída angulada
-        const ENTRY_STRAIGHT_LENGTH_M = 600; // Aumentado para começar mais abaixo
-        const EXIT_STRAIGHT_LENGTH_M = 800;  
+        
+        const ANG_ENTRY_RAD = 270 * Math.PI / 180; 
+        const ANG_EXIT_RAD = (270 + DEFLECTION_ANGLE) * Math.PI / 180; 
+
+        // O esqueleto é longo, mas o carro começará onde é visível
+        const SKELETON_ENTRY_LEN_M = 2000; 
+        const SKELETON_EXIT_LEN_M = 2000;
 
         // --- Variáveis de Simulação Dinâmica ---
         const SIMULATION_SPEED_MULTIPLIER = 7.0; 
@@ -253,6 +257,9 @@
         let currentPositionMeters = 1; 
         let carDerailment = false;
         let PI_DATA = {}; 
+        // Offset dinâmico da câmera para centralizar a curva
+        let cameraOffsetY = 0;
+        let cameraOffsetX = 0;
         
         // --- Funções de Utilitários ---
         function kmhToMps(kmh) {
@@ -265,11 +272,10 @@
             box.classList.add('show');
             setTimeout(() => {
                 box.classList.remove('show');
-            }, 5000);
+            }, 4000);
         }
 
         // --- LÓGICA DE ENGENHARIA (DNIT) ---
-
         function getDnitFriction(velocityKmh) {
             const V = Math.round(velocityKmh); 
             if (V <= 30) return 0.20; 
@@ -320,20 +326,15 @@
             const V = velocityKmh;
             const e_max = superelevationPercent / 100.0;
             const f_max = getDnitFriction(V);
-            
             const denominator = 127 * (e_max + f_max);
-            
             if (denominator === 0) return Infinity;
-            
-            const R_min = (V * V) / denominator;
-            return R_min;
+            return (V * V) / denominator;
         }
 
         function updateMinRadiusDisplay() {
             const V = parseInt(velocitySlider.value);
             const R_escolhido = parseInt(radiusSlider.value);
             const e_max_percent = parseFloat(superelevationSelect.value);
-            
             const R_min = calculateMinRadius(V, e_max_percent);
             
             minRadiusDisplay.textContent = `Raio Mínimo Exigido: ${R_min.toFixed(1)}m`;
@@ -341,11 +342,9 @@
             if (R_escolhido < R_min) {
                 minRadiusDisplay.classList.remove('text-green-600');
                 minRadiusDisplay.classList.add('text-red-600');
-                carDerailment = true;
             } else {
                 minRadiusDisplay.classList.remove('text-red-600');
                 minRadiusDisplay.classList.add('text-green-600');
-                carDerailment = false;
             }
         }
         
@@ -353,52 +352,62 @@
             const classe = classSelect.value;
             const terreno = terrainSelect.value;
             const V_sugerida = getSuggestedSpeed(classe, terreno);
-            
             suggestedSpeedDisplay.textContent = `Velocidade Diretriz (DNIT): ${V_sugerida}`;
          }
 
 
-        // --- LÓGICA DE GEOMETRIA E DESENHO ---
+        // --- LÓGICA DE GEOMETRIA (MÉTODO PI + CÂMERA DINÂMICA) ---
 
         function calculateGeometry(radius) {
             const R_METERS = radius;
             const R_PIXELS = R_METERS * SCALED_FACTOR; 
             
-            // Garantir que a tangente não seja maior que o raio para evitar sobreposição
-            // Isso pode acontecer com raios muito pequenos
-            const T_METERS_calc = R_METERS * Math.tan(DEFLECTION_RAD / 2);
-            const T_PIXELS_calc = T_METERS_calc * SCALED_FACTOR;
+            const T_METERS = R_METERS * Math.tan(DEFLECTION_RAD / 2);
+            const T_PIXELS = T_METERS * SCALED_FACTOR;
 
-            // Ajuste para evitar sobreposição em raios muito pequenos (Ponto 4)
-            // Se o raio for muito pequeno, o comprimento da tangente pode ser problemático.
-            // Para simplificar, garantimos que PC e PT sejam bem definidos mesmo com R_PIXELS pequeno.
-            let P1_X = PI_X_ORIGINAL;
-            let P1_Y = PI_Y_ORIGINAL;
-            
-            // Centraliza o ponto de início para a curva para raios pequenos
-            // A posição P1_Y é o ponto de tangência da curva.
-            // A reta de entrada vem de "baixo" (Y positivo)
-            const ENTRY_STRAIGHT_END_Y = P1_Y; // O PC da curva
-            
-            const centerX = P1_X + R_PIXELS * Math.cos(0 * Math.PI / 180); 
-            const centerY = P1_Y + R_PIXELS * Math.sin(0 * Math.PI / 180); 
-            
-            const RADIAL_P2 = (180 + DEFLECTION_ANGLE) * Math.PI / 180; 
-            const P2_X = centerX + R_PIXELS * Math.cos(RADIAL_P2);
-            const P2_Y = centerY + R_PIXELS * Math.sin(RADIAL_P2);
-            
+            const PC_X = PI_X; 
+            const PC_Y = PI_Y_BASE + T_PIXELS; // PC desce conforme T aumenta
+
+            const PT_X = PI_X + T_PIXELS * Math.cos(ANG_EXIT_RAD);
+            const PT_Y = PI_Y_BASE + T_PIXELS * Math.sin(ANG_EXIT_RAD);
+
+            const CENTER_X = PC_X + R_PIXELS; 
+            const CENTER_Y = PC_Y;
+
             const L_ARC_METERS = R_METERS * DEFLECTION_RAD;
-            const TOTAL_PATH_METERS = ENTRY_STRAIGHT_LENGTH_M + L_ARC_METERS + EXIT_STRAIGHT_LENGTH_M;
+            const DIST_ENTRY_STRAIGHT = SKELETON_ENTRY_LEN_M - T_METERS;
+            
+            const START_X = PI_X;
+            const START_Y = PI_Y_BASE + SKELETON_ENTRY_LEN_M * SCALED_FACTOR;
+
+            // --- CÁLCULO DE AJUSTE DA CÂMERA ---
+            // Queremos que o ponto médio da curva esteja mais ou menos no centro da tela.
+            // Ponto Médio Y entre PC e PT (aproximado visual)
+            const curveMidY = (PC_Y + PT_Y) / 2;
+            const curveMidX = (PC_X + PT_X) / 2;
+            
+            // Quanto precisamos mover o mundo para que curveMid fique no centro?
+            // Se curveMidY é grande (baixo), precisamos subir o mundo (offset negativo Y)
+            cameraOffsetY = (CANVAS_HEIGHT / 2) - curveMidY;
+            cameraOffsetX = (CANVAS_WIDTH / 2) - curveMidX;
+            
+            // Adiciona um pequeno offset fixo para deixar a curva um pouco mais para cima,
+            // dando espaço para ver o carro chegando de baixo.
+            cameraOffsetY += 50; 
 
             PI_DATA = {
-                R_METERS, R_PIXELS, T_METERS: T_METERS_calc, T_PIXELS: T_PIXELS_calc,
-                P1_X: PI_X_ORIGINAL, P1_Y: PI_Y_ORIGINAL, // Isso é o PC da curva, não o início da reta.
-                centerX, centerY, P2_X, P2_Y,
-                L_ARC_METERS, TOTAL_PATH_METERS
+                R_METERS, R_PIXELS,
+                T_METERS, T_PIXELS,
+                PC_X, PC_Y,
+                PT_X, PT_Y,
+                CENTER_X, CENTER_Y,
+                L_ARC_METERS,
+                DIST_ENTRY_STRAIGHT,
+                START_X, START_Y,
+                TOTAL_PATH_METERS: DIST_ENTRY_STRAIGHT + L_ARC_METERS + (SKELETON_EXIT_LEN_M - T_METERS)
             };
         }
 
-        // Modelo de carro SVG (mais detalhado que um Path2D simples, mas ainda leve)
         const carSvgPath = `
             M -8 -15 Q -10 -15 -10 -13 L -10 13 Q -10 15 -8 15 L 8 15 Q 10 15 10 13 L 10 -13 Q 10 -15 8 -15 Z
             M -7 -10 L -7 5 L 7 5 L 7 -10 Z
@@ -408,16 +417,17 @@
             M 7 7 Q 8 7 8 9 L 8 10 L 7 10 Z
         `;
         const carPath2D = new Path2D(carSvgPath);
-
-        const CAR_WIDTH_PX = 20; // Largura do carro
-        const CAR_LENGTH_PX = 30; // Comprimento do carro
         
         function drawCar(x, y, angle, derailed) {
             ctx.save();
             
             ctx.translate(CANVAS_WIDTH / 2, CANVAS_HEIGHT / 2); 
             ctx.scale(ZOOM_FACTOR, ZOOM_FACTOR);
-            ctx.translate(-PI_X_ORIGINAL, -PI_Y_ORIGINAL + VIEW_OFFSET_Y);
+            // Removemos a translação padrão do centro para aplicar a da câmera dinâmica
+            ctx.translate(-CANVAS_WIDTH/2, -CANVAS_HEIGHT/2);
+            
+            // Aplica a câmera dinâmica
+            ctx.translate(cameraOffsetX, cameraOffsetY);
             
             if (derailed) {
                 const DERAIL_DIST_P = ROAD_WIDTH_P * 0.75;
@@ -426,19 +436,20 @@
                 x += DERAIL_DIST_P * Math.cos(PERP_ANGLE);
                 y += DERAIL_DIST_P * Math.sin(PERP_ANGLE);
 
+                ctx.translate(x, y);
+                
                 ctx.fillStyle = 'red';
-                ctx.font = `28px sans-serif`; 
+                ctx.font = `40px sans-serif`; 
                 ctx.textAlign = 'center';
-                ctx.fillText('💥', x, y);
+                ctx.textBaseline = 'middle';
+                ctx.fillText('💥', 0, 0);
             } else {
                 ctx.translate(x, y);
-                // A rotação deve alinhar o SVG do carro (que está desenhado com a "frente" para cima/Y negativo)
-                // com o ângulo da pista. O + Math.PI/2 corrige essa orientação.
                 ctx.rotate(angle + Math.PI / 2); 
                 
-                ctx.fillStyle = '#ef4444'; // Vermelho do carro
+                ctx.fillStyle = '#ef4444'; 
                 ctx.strokeStyle = '#dc2626'; 
-                ctx.lineWidth = 1.5 / ZOOM_FACTOR; // Ajusta a espessura da linha ao zoom
+                ctx.lineWidth = 1.5 / ZOOM_FACTOR; 
                 
                 ctx.fill(carPath2D);
                 ctx.stroke(carPath2D);
@@ -449,62 +460,48 @@
 
         function getCarPosition(D_meters) {
             const data = PI_DATA;
-            const L_entry = ENTRY_STRAIGHT_LENGTH_M;
-            const L_arc = data.L_ARC_METERS;
+            const distEntry = data.DIST_ENTRY_STRAIGHT;
+            const distArc = data.L_ARC_METERS;
+            const LANE_OFFSET_P = ROAD_WIDTH_P / 4; 
 
             let carX, carY, carAngle;
-            
-            // Distância da linha central (para a faixa da direita)
-            // Ajuste para manter o carro na faixa (Ponto 2)
-            const LANE_OFFSET_P = ROAD_WIDTH_P / 4; // Metade da largura da faixa da direita
 
-            // 1. RETA DE ENTRADA (começa na borda inferior da janela)
-            if (D_meters <= L_entry) {
+            // 1. RETA DE ENTRADA
+            if (D_meters <= distEntry) {
                 const D_pixels = D_meters * SCALED_FACTOR;
-                
-                // O P1_Y é o PC da curva. A reta vem de baixo.
-                // START_Y_STRAIGHT_ENTRY_VISUAL é o ponto onde a reta "entra" na tela visível
-                const START_Y_STRAIGHT_ENTRY_VISUAL = data.P1_Y + ENTRY_STRAIGHT_LENGTH_M * SCALED_FACTOR;
-
-                carX = data.P1_X;
-                // Calculamos a posição Y a partir do ponto onde a reta encontra a curva (P1_Y)
-                // e subtraímos a distância percorrida D_pixels.
-                carY = START_Y_STRAIGHT_ENTRY_VISUAL - D_pixels;
-                carAngle = T1_RAD; 
+                carX = data.START_X;
+                carY = data.START_Y - D_pixels; 
+                carAngle = ANG_ENTRY_RAD;
 
             // 2. CURVA (ARCO)
-            } else if (D_meters <= L_entry + L_arc) {
-                const D_arc = D_meters - L_entry;
-                const progress = D_arc / L_arc;
-                const startAngleDeg = 180; // Início do arco em 180 graus (esquerda)
-                const currentAngleDeg = startAngleDeg + (progress * DEFLECTION_ANGLE);
-                const currentAngleRad = currentAngleDeg * Math.PI / 180;
+            } else if (D_meters <= distEntry + distArc) {
+                const D_in_arc = D_meters - distEntry;
+                const progress = D_in_arc / distArc;
                 
-                carAngle = currentAngleRad + Math.PI / 2; // Tangente ao arco
+                const startNormalAngle = Math.PI; // 180 graus
+                const currentNormalAngle = startNormalAngle + (progress * DEFLECTION_RAD);
                 
-                // O carro se move na faixa da direita. O raio para o carro é o raio da linha central da curva
-                // mais o offset para a faixa da direita (Ponto 2)
-                const carRadius = data.R_PIXELS - LANE_OFFSET_P; 
-                carX = data.centerX + carRadius * Math.cos(currentAngleRad);
-                carY = data.centerY + carRadius * Math.sin(currentAngleRad);
+                const carRadius = data.R_PIXELS - LANE_OFFSET_P;
                 
-                return { x: carX, y: carY, angle: carAngle }; 
-                
+                carX = data.CENTER_X + carRadius * Math.cos(currentNormalAngle);
+                carY = data.CENTER_Y + carRadius * Math.sin(currentNormalAngle);
+                carAngle = currentNormalAngle + Math.PI / 2;
+
             // 3. RETA DE SAÍDA
             } else {
-                const D_exit = D_meters - (L_entry + L_arc);
+                const D_exit = D_meters - (distEntry + distArc);
                 const D_pixels = D_exit * SCALED_FACTOR;
-
-                carX = data.P2_X + D_pixels * Math.cos(T2_RAD);
-                carY = data.P2_Y + D_pixels * Math.sin(T2_RAD);
-                carAngle = T2_RAD;
+                
+                carX = data.PT_X + D_pixels * Math.cos(ANG_EXIT_RAD);
+                carY = data.PT_Y + D_pixels * Math.sin(ANG_EXIT_RAD);
+                carAngle = ANG_EXIT_RAD;
             }
 
-            // Offset para o carro estar na faixa da direita (apenas nas retas, na curva o offset já é aplicado ao raio)
-            // Usamos a direção perpendicular para o offset
-            const offsetAngle = carAngle + Math.PI / 2; // Perpendicular à direção da pista
-            carX += LANE_OFFSET_P * Math.cos(offsetAngle);
-            carY += LANE_OFFSET_P * Math.sin(offsetAngle);
+            if (D_meters <= distEntry || D_meters > distEntry + distArc) {
+                const offsetAngle = carAngle + Math.PI / 2;
+                carX += LANE_OFFSET_P * Math.cos(offsetAngle);
+                carY += LANE_OFFSET_P * Math.sin(offsetAngle);
+            }
 
             return { x: carX, y: carY, angle: carAngle };
         }
@@ -523,26 +520,13 @@
             
             ctx.fillStyle = gradient;
             ctx.fillRect(0, 0, CANVAS_WIDTH, CANVAS_HEIGHT);
-
-            const offscreenCanvas = document.createElement('canvas');
-            offscreenCanvas.width = CANVAS_WIDTH;
-            offscreenCanvas.height = CANVAS_HEIGHT;
-            const offscreenCtx = offscreenCanvas.getContext('2d');
-
-            const imageData = offscreenCtx.createImageData(CANVAS_WIDTH, CANVAS_HEIGHT);
-            const data = imageData.data;
-            for (let i = 0; i < data.length; i += 4) {
-                const rand = Math.random() * 255; 
-                data[i] = rand;     
-                data[i + 1] = rand; 
-                data[i + 2] = rand; 
-                data[i + 3] = 30;   
+            
+            ctx.globalAlpha = 0.1;
+            ctx.fillStyle = '#000';
+            for(let i=0; i<1000; i++) {
+                ctx.fillRect(Math.random()*CANVAS_WIDTH, Math.random()*CANVAS_HEIGHT, 2, 2);
             }
-            offscreenCtx.putImageData(imageData, 0, 0);
-
-            ctx.globalAlpha = 0.3; 
-            ctx.drawImage(offscreenCanvas, 0, 0);
-            ctx.globalAlpha = 1; 
+            ctx.globalAlpha = 1;
 
             ctx.restore();
         }
@@ -556,108 +540,97 @@
             
             ctx.translate(CANVAS_WIDTH / 2, CANVAS_HEIGHT / 2); 
             ctx.scale(ZOOM_FACTOR, ZOOM_FACTOR);
-            ctx.translate(-PI_X_ORIGINAL, -PI_Y_ORIGINAL + VIEW_OFFSET_Y); // Aplica o offset aqui
+            ctx.translate(-CANVAS_WIDTH/2, -CANVAS_HEIGHT/2); // Reset center
+            ctx.translate(cameraOffsetX, cameraOffsetY); // Apply dynamic cam
 
-            // Calcula o ponto de início da reta de entrada (na borda inferior da tela visível)
-            const START_Y_STRAIGHT_ENTRY_SCREEN_BOTTOM = (CANVAS_HEIGHT / 2) / ZOOM_FACTOR + PI_Y_ORIGINAL - VIEW_OFFSET_Y + 50; // Começa um pouco abaixo da tela
-            const START_X_STRAIGHT_ENTRY_SCREEN_BOTTOM = data.P1_X; // X é o mesmo que o PC
+            const roadColor = '#374151';
+            const lineColor = '#fefefe';
+            const edgeColor = '#6b7280';
+            const lineWidth = 4 / ZOOM_FACTOR;
+            const dash = [10 / ZOOM_FACTOR, 10 / ZOOM_FACTOR];
 
-            // Ponto de tangência da curva (PC)
-            const PC_X = data.P1_X;
-            const PC_Y = data.P1_Y; // PC é o PI_Y_ORIGINAL
+            const rw = ROAD_WIDTH_P / 2;
+            
+            ctx.fillStyle = roadColor;
+            ctx.strokeStyle = edgeColor;
+            ctx.lineWidth = lineWidth;
 
-            // RETA DE ENTRADA (desenha do ponto abaixo da tela até o PC da curva)
-            ctx.fillStyle = '#374151'; 
-            ctx.strokeStyle = '#6b7280'; 
-            ctx.lineWidth = 4 / ZOOM_FACTOR;
-            ctx.setLineDash([]); 
-
+            // Reta Entrada
             ctx.beginPath();
-            ctx.moveTo(PC_X + ROAD_WIDTH_P/2, PC_Y);
-            ctx.lineTo(START_X_STRAIGHT_ENTRY_SCREEN_BOTTOM + ROAD_WIDTH_P/2, START_Y_STRAIGHT_ENTRY_SCREEN_BOTTOM);
-            ctx.lineTo(START_X_STRAIGHT_ENTRY_SCREEN_BOTTOM - ROAD_WIDTH_P/2, START_Y_STRAIGHT_ENTRY_SCREEN_BOTTOM);
-            ctx.lineTo(PC_X - ROAD_WIDTH_P/2, PC_Y);
+            ctx.moveTo(data.START_X - rw, data.START_Y);
+            ctx.lineTo(data.START_X + rw, data.START_Y);
+            ctx.lineTo(data.PC_X + rw, data.PC_Y);
+            ctx.lineTo(data.PC_X - rw, data.PC_Y);
             ctx.closePath();
             ctx.fill();
-            ctx.stroke(); 
-
-            // Linha Central Reta Entrada (Tracejada)
-            ctx.setLineDash([10 / ZOOM_FACTOR, 10 / ZOOM_FACTOR]);
-            ctx.strokeStyle = '#fefefe';
-            ctx.lineWidth = 2 / ZOOM_FACTOR;
-            ctx.beginPath();
-            ctx.moveTo(PC_X, PC_Y);
-            ctx.lineTo(START_X_STRAIGHT_ENTRY_SCREEN_BOTTOM, START_Y_STRAIGHT_ENTRY_SCREEN_BOTTOM);
             ctx.stroke();
-            ctx.setLineDash([]); 
-            
-            // CURVA (ARCO)
-            const outerRadius = data.R_PIXELS + ROAD_WIDTH_P / 2;
-            let innerRadius = data.R_PIXELS - ROAD_WIDTH_P / 2;
-            
-            if (innerRadius <= 0) {
-                innerRadius = 1.0; 
-            }
 
+            // Linha Central Entrada
+            ctx.beginPath();
+            ctx.strokeStyle = lineColor;
+            ctx.lineWidth = 2 / ZOOM_FACTOR;
+            ctx.setLineDash(dash);
+            ctx.moveTo(data.START_X, data.START_Y);
+            ctx.lineTo(data.PC_X, data.PC_Y);
+            ctx.stroke();
+            ctx.setLineDash([]);
+
+            // Curva
+            const outerRadius = data.R_PIXELS + rw;
+            const innerRadius = Math.max(0, data.R_PIXELS - rw);
+            
             const startAngle = Math.PI; 
-            const endAngle = (180 + DEFLECTION_ANGLE) * Math.PI / 180; 
-            const isAntiClockwise = false; 
+            const endAngle = Math.PI + DEFLECTION_RAD;
+
+            ctx.lineWidth = lineWidth;
+            ctx.strokeStyle = edgeColor;
+            ctx.fillStyle = roadColor;
 
             ctx.beginPath();
-            ctx.arc(data.centerX, data.centerY, outerRadius, startAngle, endAngle, isAntiClockwise);
-            ctx.arc(data.centerX, data.centerY, innerRadius, endAngle, startAngle, !isAntiClockwise);
+            ctx.arc(data.CENTER_X, data.CENTER_Y, outerRadius, startAngle, endAngle, false);
+            ctx.arc(data.CENTER_X, data.CENTER_Y, innerRadius, endAngle, startAngle, true); 
             ctx.closePath();
             ctx.fill();
-            ctx.strokeStyle = '#6b7280';
-            ctx.lineWidth = 4 / ZOOM_FACTOR;
-            ctx.stroke(); 
-
-            // Linha Central Curva (Tracejada)
-            ctx.setLineDash([10 / ZOOM_FACTOR, 10 / ZOOM_FACTOR]);
-            ctx.strokeStyle = '#fefefe';
-            ctx.lineWidth = 2 / ZOOM_FACTOR;
-            ctx.beginPath();
-            ctx.arc(data.centerX, data.centerY, data.R_PIXELS, startAngle, endAngle, isAntiClockwise);
             ctx.stroke();
-            ctx.setLineDash([]); 
-            
-            // RETA DE SAÍDA
-            const PERP_T2_RAD = T2_RAD - Math.PI / 2; 
-            const offsetX_out = Math.cos(PERP_T2_RAD) * ROAD_WIDTH_P / 2;
-            const offsetY_out = Math.sin(PERP_T2_RAD) * ROAD_WIDTH_P / 2;
-            
-            const END_X_STRAIGHT_EXIT = data.P2_X + EXIT_STRAIGHT_LENGTH_M * SCALED_FACTOR * Math.cos(T2_RAD);
-            const END_Y_STRAIGHT_EXIT = data.P2_Y + EXIT_STRAIGHT_LENGTH_M * SCALED_FACTOR * Math.sin(T2_RAD);
-            
-            const P2_OUTER_X = data.P2_X + offsetX_out;
-            const P2_OUTER_Y = data.P2_Y + offsetY_out;
-            const END_OUTER_X = END_X_STRAIGHT_EXIT + offsetX_out;
-            const END_OUTER_Y = END_Y_STRAIGHT_EXIT + offsetY_out;
-            const P2_INNER_X = data.P2_X - offsetX_out;
-            const P2_INNER_Y = data.P2_Y - offsetY_out;
-            const END_INNER_X = END_X_STRAIGHT_EXIT - offsetX_out;
-            const END_INNER_Y = END_Y_STRAIGHT_EXIT - offsetY_out;
 
-            ctx.fillStyle = '#374151';
+            // Linha Central Curva
             ctx.beginPath();
-            ctx.moveTo(P2_OUTER_X, P2_OUTER_Y);
-            ctx.lineTo(END_OUTER_X, END_OUTER_Y);
-            ctx.lineTo(END_INNER_X, END_INNER_Y);
-            ctx.lineTo(P2_INNER_X, P2_INNER_Y);
+            ctx.strokeStyle = lineColor;
+            ctx.lineWidth = 2 / ZOOM_FACTOR;
+            ctx.setLineDash(dash);
+            ctx.arc(data.CENTER_X, data.CENTER_Y, data.R_PIXELS, startAngle, endAngle, false);
+            ctx.stroke();
+            ctx.setLineDash([]);
+
+            // Reta Saída
+            const EXIT_END_X = data.PT_X + (SKELETON_EXIT_LEN_M * SCALED_FACTOR) * Math.cos(ANG_EXIT_RAD);
+            const EXIT_END_Y = data.PT_Y + (SKELETON_EXIT_LEN_M * SCALED_FACTOR) * Math.sin(ANG_EXIT_RAD);
+            
+            const nx = Math.cos(ANG_EXIT_RAD + Math.PI/2) * rw;
+            const ny = Math.sin(ANG_EXIT_RAD + Math.PI/2) * rw;
+
+            ctx.lineWidth = lineWidth;
+            ctx.strokeStyle = edgeColor;
+            ctx.fillStyle = roadColor;
+
+            ctx.beginPath();
+            ctx.moveTo(data.PT_X - nx, data.PT_Y - ny);
+            ctx.lineTo(data.PT_X + nx, data.PT_Y + ny);
+            ctx.lineTo(EXIT_END_X + nx, EXIT_END_Y + ny);
+            ctx.lineTo(EXIT_END_X - nx, EXIT_END_Y - ny);
             ctx.closePath();
             ctx.fill();
-            ctx.strokeStyle = '#6b7280';
-            ctx.lineWidth = 4 / ZOOM_FACTOR;
             ctx.stroke();
-            
-            // Linha Central Reta Saída (Tracejada)
-            ctx.setLineDash([10 / ZOOM_FACTOR, 10 / ZOOM_FACTOR]);
-            ctx.strokeStyle = '#fefefe';
-            ctx.lineWidth = 2 / ZOOM_FACTOR;
+
+            // Linha Central Saída
             ctx.beginPath();
-            ctx.moveTo(data.P2_X, data.P2_Y);
-            ctx.lineTo(END_X_STRAIGHT_EXIT, END_Y_STRAIGHT_EXIT);
+            ctx.strokeStyle = lineColor;
+            ctx.lineWidth = 2 / ZOOM_FACTOR;
+            ctx.setLineDash(dash);
+            ctx.moveTo(data.PT_X, data.PT_Y);
+            ctx.lineTo(EXIT_END_X, EXIT_END_Y);
             ctx.stroke();
+            ctx.setLineDash([]);
 
             ctx.restore();
         }
@@ -678,42 +651,79 @@
             const e_max_percent = parseFloat(superelevationSelect.value);
             const R_min = calculateMinRadius(V_kmh, e_max_percent);
 
-            if (currentPositionMeters >= ENTRY_STRAIGHT_LENGTH_M && 
-                currentPositionMeters <= ENTRY_STRAIGHT_LENGTH_M + PI_DATA.L_ARC_METERS) {
-                
+            const startCurve = PI_DATA.DIST_ENTRY_STRAIGHT;
+            const endCurve = startCurve + PI_DATA.L_ARC_METERS;
+            const isInCurve = currentPositionMeters >= startCurve && currentPositionMeters <= endCurve;
+
+            if (isInCurve) {
                 if (R_escolhido < R_min) {
                     carDerailment = true;
-                } else {
-                    carDerailment = false; 
+
+                    drawCurve();
+                    const carPos = getCarPosition(currentPositionMeters);
+                    drawCar(carPos.x, carPos.y, carPos.angle, true); 
+
+                    isSimulationRunning = false;
+                    cancelAnimationFrame(animationFrameId);
+
+                    toggleButton.textContent = 'Iniciar Simulação';
+                    toggleButton.classList.remove('bg-red-500', 'hover:bg-red-600');
+                    toggleButton.classList.add('bg-custom-green-dark', 'hover:bg-custom-green-dark-hover');
+
+                    showMessage(`DERAPAGEM! Velocidade de ${V_kmh}km/h alta demais para raio de ${R_escolhido}m.`);
+                    return; 
                 }
             } else {
                 carDerailment = false;
             }
 
             if (currentPositionMeters > PI_DATA.TOTAL_PATH_METERS + 100) {
-                currentPositionMeters = 0;
-                if (carDerailment) {
-                    showMessage(`Derrapagem! Raio ${R_escolhido}m é menor que R_min ${R_min.toFixed(1)}m a ${V_kmh}km/h.`);
-                }
-                carDerailment = false; 
+                // Loop: Ao reiniciar o loop automático (se não houver acidente),
+                // voltamos para um ponto visível, não para 0.
+                currentPositionMeters = getVisibleStartMeters();
             }
             
             drawCurve(); 
             const carPos = getCarPosition(currentPositionMeters);
-            drawCar(carPos.x, carPos.y, carPos.angle, carDerailment);
+            drawCar(carPos.x, carPos.y, carPos.angle, false);
 
-            animationFrameId = requestAnimationFrame(simulationLoop);
+            if (isSimulationRunning) {
+                animationFrameId = requestAnimationFrame(simulationLoop);
+            }
+        }
+
+        // Calcula onde o carro deve começar para estar visível na tela
+        function getVisibleStartMeters() {
+            // A posição Y do PC (início da curva) é PI_DATA.PC_Y
+            // A câmera ajusta tudo por cameraOffsetY.
+            // O centro da tela é Y = CANVAS_HEIGHT / 2.
+            // O "Mundo" é desenhado tal que (0,0) está no centro + offsets.
+            // Queremos saber quantos pixels abaixo do PC cabem na tela.
+            
+            // Simplesmente: Vamos começar X metros antes da curva (Dist Entry Straight)
+            // Mas limitamos para garantir que seja visível.
+            // Distância visual segura antes da curva (em metros)
+            const SAFE_VISUAL_DISTANCE_M = 400; 
+            
+            // Se o trecho reto for muito longo, corte o início.
+            const startMeters = Math.max(0, PI_DATA.DIST_ENTRY_STRAIGHT - SAFE_VISUAL_DISTANCE_M);
+            return startMeters;
         }
 
         function startSimulation() {
             if (isSimulationRunning) return;
+            
+            const box = document.getElementById('messageBox');
+            box.classList.remove('show');
+
             isSimulationRunning = true;
             toggleButton.textContent = 'Parar Simulação';
             toggleButton.classList.remove('bg-custom-green-dark', 'hover:bg-custom-green-dark-hover');
             toggleButton.classList.add('bg-red-500', 'hover:bg-red-600');
 
-            currentPositionMeters = 0;
-            carDerailment = false;
+            // Inicia numa posição visível, não lá no km 0
+            currentPositionMeters = getVisibleStartMeters(); 
+            carDerailment = false;     
 
             lastTime = 0; 
             simulationLoop(performance.now());
@@ -727,14 +737,15 @@
             toggleButton.classList.add('bg-custom-green-dark', 'hover:bg-custom-green-dark-hover');
             cancelAnimationFrame(animationFrameId);
             
-            currentPositionMeters = 1; 
+            // Posiciona o carro parado logo antes da curva para visualização
+            currentPositionMeters = PI_DATA.DIST_ENTRY_STRAIGHT - 50;
+            if (currentPositionMeters < 0) currentPositionMeters = 0;
+
             drawCurve();
             const carPos = getCarPosition(currentPositionMeters);
             drawCar(carPos.x, carPos.y, carPos.angle, carDerailment);
         }
 
-        // --- Event Listeners ---
-        
         toggleButton.addEventListener('click', () => {
             if (isSimulationRunning) {
                 stopSimulation();
@@ -755,7 +766,8 @@
             updateSuggestedSpeedDisplay();
 
             if (!isSimulationRunning) {
-                currentPositionMeters = 1; 
+                // Ao mudar controles, mostra o carro parado perto da curva
+                currentPositionMeters = Math.max(0, PI_DATA.DIST_ENTRY_STRAIGHT - 50);
                 drawCurve();
                 const carPos = getCarPosition(currentPositionMeters);
                 drawCar(carPos.x, carPos.y, carPos.angle, carDerailment);
@@ -768,7 +780,6 @@
         terrainSelect.addEventListener('change', handleControlChange);
         superelevationSelect.addEventListener('change', handleControlChange);
 
-        // --- Inicialização ---
         window.onload = function() {
             handleControlChange(); 
             stopSimulation(); 
